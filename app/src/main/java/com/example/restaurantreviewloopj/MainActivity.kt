@@ -1,9 +1,12 @@
 package com.example.restaurantreviewloopj
 
+import android.content.Context
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.os.Handler
 import android.util.Log
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.recyclerview.widget.DividerItemDecoration
@@ -12,6 +15,7 @@ import com.bumptech.glide.Glide
 import com.example.restaurantreviewloopj.databinding.ActivityMainBinding
 import com.loopj.android.http.AsyncHttpClient
 import com.loopj.android.http.AsyncHttpResponseHandler
+import com.loopj.android.http.RequestParams
 import cz.msebera.android.httpclient.Header
 import org.json.JSONObject
 
@@ -36,14 +40,35 @@ class MainActivity : AppCompatActivity() {
 
         getRestaurant()
 
+        binding.btnSend.setOnClickListener{
+            postReview(binding.edReview.text.toString())
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(it.windowToken, 0)
+        }
     }
 
-    private fun postReview(){
+    private fun postReview(review: String){
+        showLoading(true)
+        val client = AsyncHttpClient()
+        val url = "https://restaurant-api.dicoding.dev/review"
+        val params = RequestParams()
+        params.put("id", "uewq1zg2zlskfw1e867")
+        params.put("name", "si malas")
+        params.put("review", review)
 
-    }
+        client.post(url, params, object: AsyncHttpResponseHandler(){
+            override fun onSuccess(statusCode: Int,headers: Array<out Header>?, responseBody: ByteArray?) {
+                showLoading(false)
+                getRestaurant()
+            }
 
-    private fun findRestaurant(){
+            override fun onFailure(statusCode: Int, headers: Array<out Header>?, responseBody: ByteArray?, error: Throwable?) {
+                showLoading(false)
+                Log.e(TAG, "onFailure: ${error?.message}",)
+                Toast.makeText(this@MainActivity, "${error?.message}", Toast.LENGTH_SHORT).show()
+            }
 
+        })
     }
 
     private fun setRestaurantData(restaurant: Restaurant){
@@ -60,7 +85,7 @@ class MainActivity : AppCompatActivity() {
             listReview.add("""${review.review}- ${review.name}""".trimIndent())
         }
         binding.rvReview.adapter = ReviewAdapter(listReview)
-//        binding.edReview.setText("")
+        binding.edReview.setText("")
     }
 
     private fun showLoading(isLoading: Boolean){
@@ -79,13 +104,21 @@ class MainActivity : AppCompatActivity() {
         client.get(url, object: AsyncHttpResponseHandler(){
             override fun onSuccess(statusCode: Int, headers: Array<out Header>?, responseBody: ByteArray?) {
                 showLoading(false)
-                val response = String(responseBody!!)
-                parseJson(response)
+                if(responseBody != null){
+                    val response = String(responseBody)
+                    parseJson(response)
+                }
             }
 
             override fun onFailure(statusCode: Int, headers: Array<out Header>?, responseBody: ByteArray?, error: Throwable?) {
-                Toast.makeText(this@MainActivity, error?.message, Toast.LENGTH_SHORT).show()
-                Log.e(TAG, "onFailure: ${error?.message}", )
+                showLoading(false)
+                val errorMessage = when (statusCode) {
+                    401 -> "$statusCode : Bad Request"
+                    403 -> "$statusCode : Forbidden"
+                    404 -> "$statusCode : Not Found"
+                    else -> "$statusCode : ${error?.message}"
+                }
+                Toast.makeText(this@MainActivity, errorMessage, Toast.LENGTH_SHORT).show()
             }
         })
     }
